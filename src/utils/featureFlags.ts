@@ -1,7 +1,13 @@
 import * as Sentry from "@sentry/react";
 
 export type FeatureFlags = {
-  NEXT_GEN_API: boolean;
+  NEW_STORE_API: boolean;
+  STORE_CHECKOUT_ENABLED: boolean;
+  NEW_REGISTRATION_FLOW: boolean;
+  BASKETBALL_DRILLS_VIDEO: boolean;
+  PARENT_DASHBOARD_V2: boolean;
+  MAIN_STORE: boolean;
+  PURCHASING_API: boolean;
   [key: string]: boolean;
 };
 
@@ -9,7 +15,13 @@ export type FlagValue = string | number | boolean;
 export type FlagMap = Record<string, FlagValue>;
 
 export const defaultFlags: FeatureFlags = {
-  NEXT_GEN_API: false,
+  NEW_STORE_API: false,
+  STORE_CHECKOUT_ENABLED: true,
+  NEW_REGISTRATION_FLOW: false,
+  BASKETBALL_DRILLS_VIDEO: false,
+  PARENT_DASHBOARD_V2: false,
+  MAIN_STORE: false,
+  PURCHASING_API: false,
 };
 
 const LOCALSTORAGE_KEY = 'feature-flag-overrides';

@@ -5,10 +5,16 @@ import App from './App.tsx';
 import './index.css';
 import { useEffect } from "react";
 import { defaultFlags, setFeatureFlag } from './utils/featureFlags';
+import { faker } from '@faker-js/faker';
+
+// Set random user on load
+const userEmail = faker.internet.email();
+Sentry.setUser({ email: userEmail });
+console.log(`Setting Sentry user: ${userEmail}`);
 
 // Initialize Sentry with Toolbar and Feature Flag Adapter
 Sentry.init({
-  dsn: import.meta.env.VITE_SENTRY_DSN,
+  dsn: 'https://02735a9ae1b7e3c2fc703f9bee1f6b23@o4508130833793024.ingest.us.sentry.io/4509059750821888',
   integrations: [
     Sentry.reactRouterV6BrowserTracingIntegration({
       useEffect,
@@ -20,6 +26,10 @@ Sentry.init({
     Sentry.replayIntegration(),
     Sentry.featureFlagsIntegration()
   ],
+
+  _experiments: {
+    enableLogs: true,
+  },
   // Performance Monitoring
   tracesSampleRate: 1.0, // Capture 100% of the transactions
   // Session Replay
