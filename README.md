@@ -4,6 +4,14 @@ A React application with feature flags implementation using Sentry for error mon
 
 ## Getting Started
 
+### Sentry Setup 
+
+In Sentry, make sure you configure the necessary feature flag setup options. Specifically, you'll need to make sure you have change tracking setup with the generic option which will give you a webhook URL and you'll configure the secret. These will need to go into your .env files for the app.
+
+You'll also want to make sure you've configured your flag toolbar.
+
+### App Setup 
+
 1. Clone the repository
 2. Install dependencies for the frontend:
    ```bash
