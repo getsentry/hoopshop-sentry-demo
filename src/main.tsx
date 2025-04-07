@@ -4,7 +4,7 @@ import { useLocation, useNavigationType, createRoutesFromChildren, matchRoutes }
 import App from './App.tsx';
 import './index.css';
 import { useEffect } from "react";
-import { defaultFlags, setFeatureFlag } from './utils/featureFlags';
+import { fetchServerDefaults, setFeatureFlag } from './utils/featureFlags';
 import { faker } from '@faker-js/faker';
 
 // Set random user on load
@@ -37,10 +37,20 @@ Sentry.init({
   replaysOnErrorSampleRate: 1.0,
 });
 
-// Initialize default feature flags
-Object.entries(defaultFlags).forEach(([flag, value]) => {
-  setFeatureFlag(flag, value);
-});
+// --- Asynchronously fetch defaults and set initial Sentry context ---
+(async () => {
+  try {
+    const serverDefaults = await fetchServerDefaults();
+    console.log("Setting initial Sentry context flags from server defaults:", serverDefaults);
+    Object.entries(serverDefaults).forEach(([flag, value]) => {
+      // Ensure the value is boolean before setting
+      setFeatureFlag(flag, Boolean(value)); 
+    });
+  } catch (error) {
+    console.error("Failed to set initial feature flags in Sentry context:", error);
+  }
+})();
+// ---------------------------------------------------------------------
 
 createRoot(document.getElementById('root')!).render(
   <Sentry.ErrorBoundary fallback={<p>An error has occurred</p>}>

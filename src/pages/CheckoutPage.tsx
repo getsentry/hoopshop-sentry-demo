@@ -1,29 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { useFeatureFlags } from '../context/FeatureFlagsContext';
 import { PaymentInfo } from '../types';
 import * as Sentry from "@sentry/react";
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, Lock, CheckCircle, AlertTriangle, Loader2, ArrowRight } from 'lucide-react';
+import { CreditCard, Lock, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
 // This can be toggled in development to test error states
-const { info, fmt } = Sentry.logger
+const { info, error, fmt } = Sentry.logger
 
 export function CheckoutPage() {
   const { total, clearCart, items } = useCart();
   const { flags } = useFeatureFlags();
   const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [apiUsedOnSuccess, setApiUsedOnSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // If checkout is disabled, redirect to cart
-  React.useEffect(() => {
-    if (!flags.STORE_CHECKOUT_ENABLED) {
-      navigate('/cart');
+  // We won't redirect as we want to always allow checkout, 
+  // but show appropriate errors based on flag combinations
+
+  // SITE_RELAUNCH feature flag handling - check when the component mounts or flags change
+  useEffect(() => {
+    if (flags.SITE_RELAUNCH && !flags.BACKEND_V2) {
+      console.log("SITE_RELAUNCH is enabled but BACKEND_V2 is not. Checkout will fail when attempted.");
     }
-  }, [flags.STORE_CHECKOUT_ENABLED, navigate]);
+  }, [flags.SITE_RELAUNCH, flags.BACKEND_V2]);
 
   // Simulated stored payment info
   const storedPaymentInfo: PaymentInfo = {
@@ -37,75 +40,77 @@ export function CheckoutPage() {
     info(fmt`Processing legacy payment: ${storedPaymentInfo}`);
     // Simulate legacy payment processing
     await new Promise(resolve => setTimeout(resolve, 1500));
-    // Legacy API has a 20% chance of failure
-    if (Math.random() < 0.2) {
-      throw new Error('Legacy payment system: Transaction declined');
-    }
+    // No random failures anymore - always succeed
     return { success: true };
   };
 
-  const processPaymentNewStoreApi = async () => {
-    // Simulate new store API processing - this fails for demo purposes
-    await new Promise(resolve => setTimeout(resolve, 800));
-    throw new Error('NEW_STORE_API Error: Invalid transaction format. The new API requires additional validation parameters.');
+  // New function to process payment with the relaunch backend
+  const processRelaunchPayment = async () => {
+    info(fmt`Processing relaunch payment with BACKEND_V2: ${storedPaymentInfo}`);
+    // Simulate processing
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    
+    // Only succeed if BACKEND_V2 is enabled
+    if (!flags.BACKEND_V2) {
+      error(`SITE_RELAUNCH Error: Unable to connect to API. The relaunch requires BACKEND_V2 to be enabled.`);
+      throw new Error('SITE_RELAUNCH Error: Unable to connect to API. The relaunch requires BACKEND_V2 to be enabled.');
+    }
+    
+    return { success: true };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setProcessing(true);
-    setError(null);
+    setErrorState(null);
 
-    // Check if MAIN_STORE is enabled but PURCHASING_API is not
-    if (flags.MAIN_STORE && !flags.PURCHASING_API) { // Use PURCHASING_API
-      const errorMessage = 'Checkout Error: The purchasing API seems to be temporarily down. Please try again later.';
-      setError(errorMessage); // Set UI error message
-      Sentry.captureException(new Error(errorMessage), { // Capture the specific error in Sentry
-        tags: { checkout_step: 'api_check' }
-      }); 
-      setProcessing(false);
-      return; // Stop processing
-    }
-
-    try {
-      // Decide API based on MAIN_STORE and PURCHASING_API flags
-      let apiToUse = 'legacy';
-      if (flags.MAIN_STORE && flags.PURCHASING_API) { // Use PURCHASING_API
-          apiToUse = 'main_store_with_api'; // Represents the successful main store path
-      } else if (flags.NEW_STORE_API) { 
-          apiToUse = 'new_store_api';
-      } // else it remains 'legacy'
-      Sentry.setTag("checkout_api", apiToUse);
-
+    // SITE_RELAUNCH scenario - requires BACKEND_V2 to work
+    if (flags.SITE_RELAUNCH) {
+      Sentry.setTag("checkout_api", "relaunch_api");
+      
       try {
-        // Branch logic based on the flags
-        if (flags.MAIN_STORE && flags.PURCHASING_API) { // Use PURCHASING_API
-            // Main store is active and API is enabled - process successfully (using legacy simulation for now)
-            const result = await processPaymentLegacy(); 
-            console.log('Main store payment successful:', result);
-            setSuccess(true);
-            setApiUsedOnSuccess(apiToUse);
-            clearCart();
-        } else if (flags.NEW_STORE_API) {
-            // Use the new store API (which currently simulates failure)
-            await processPaymentNewStoreApi(); 
-        } else {
-            // Default to legacy payment processing
-            const result = await processPaymentLegacy();
-            console.log('Legacy payment successful:', result);
-            setSuccess(true);
-            setApiUsedOnSuccess(apiToUse);
-            clearCart();
-        }
+        const result = await processRelaunchPayment();
+        console.log('Relaunch payment successful:', result);
+        setSuccess(true);
+        setApiUsedOnSuccess("relaunch_with_backend_v2");
+        clearCart();
       } catch (err) {
-        // Capture errors from legacy and new_store_api paths.
-        if (apiToUse === 'legacy' || apiToUse === 'new_store_api') {
-           Sentry.captureException(err);
-        }
-        throw err; // Rethrow to be handled by the outer catch
+        const errorMessage = err instanceof Error ? err.message : 'Payment failed during site relaunch';
+        
+        // Capture the specific error in Sentry with detailed tags
+        Sentry.captureException(new Error(errorMessage), {
+          tags: { 
+            checkout_step: 'relaunch_payment_processing',
+            site_relaunch: 'true',
+            backend_v2: flags.BACKEND_V2 ? 'true' : 'false'
+          }
+        });
+        
+        setErrorState(errorMessage);
+      } finally {
+        setProcessing(false);
+      }
+      return; // Exit early
+    }
+    
+    // If not in relaunch mode, use standard legacy flow
+    try {
+      // Use legacy API
+      Sentry.setTag("checkout_api", "legacy");
+      
+      try {
+        const result = await processPaymentLegacy();
+        console.log('Legacy payment successful:', result);
+        setSuccess(true);
+        setApiUsedOnSuccess("legacy");
+        info(fmt`Checkout successful: ${result}`);
+        clearCart();
+      } catch (err) {
+        Sentry.captureException(err);
+        throw err;
       }
     } catch (err) {
-      // Outer catch handles setting the error message for the UI
-      setError(err instanceof Error ? err.message : 'Payment failed');
+      setErrorState(err instanceof Error ? err.message : 'Payment failed');
     } finally {
       setProcessing(false);
     }
@@ -115,22 +120,15 @@ export function CheckoutPage() {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
         <CheckCircle size={64} className="mx-auto text-green-500 mb-6" />
-        <h2 className="text-3xl font-bold text-brand-navy mb-4">
+        <h2 className="text-3xl font-bold text-brand-navy mb-4" data-testid="payment-success">
           Payment Successful!
         </h2>
         <p className="text-brand-secondary mb-6">
           Thank you for your purchase. Your order is confirmed and on its way!
         </p>
          {/* Display API used on success based on state */}
-         {apiUsedOnSuccess === 'main_store_with_api' && (
-          <p className="text-sm text-gray-500 mb-8">Processed with: Main Store API</p>
-        )}
-        {apiUsedOnSuccess === 'legacy' && (
-          <p className="text-sm text-gray-500 mb-8">Processed with: Legacy API</p>
-        )}
-        {/* Add case for new_store_api if it could ever lead to success */}
-        {apiUsedOnSuccess === 'new_store_api' && (
-          <p className="text-sm text-gray-500 mb-8">Processed with: New Store API (Beta)</p>
+         {apiUsedOnSuccess === 'relaunch_with_backend_v2' && (
+          <p className="text-sm text-gray-500 mb-8">Processed with: Relaunch API v2</p>
         )}
 
         <button
@@ -189,20 +187,14 @@ export function CheckoutPage() {
                 <p>Expiry: {storedPaymentInfo.expiryDate}</p>
                 <p>Name: {storedPaymentInfo.name}</p>
               </div>
-               {/* API Status Indicator */}
-              <div className={`mt-4 p-3 rounded-lg border bg-${apiStatusColor}-50 border-${apiStatusColor}-200`}>
-                <p className={`text-sm font-medium text-${apiStatusColor}-800`}>
-                  {apiStatusMessage}
-                </p>
-              </div>
             </div>
           </div>
 
           <form onSubmit={handleSubmit}>
-            {error && (
+            {errorState && (
               <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg flex items-center gap-3 border border-red-300">
                 <AlertTriangle size={20} />
-                <span>{error}</span>
+                <span>500 error communicating with backend services. API unavailable.</span>
               </div>
             )}
 
@@ -210,6 +202,7 @@ export function CheckoutPage() {
               <button
                 type="submit"
                 disabled={processing}
+                data-testid="submit-payment-button"
                 className={`w-full inline-flex items-center justify-center gap-3 bg-brand-orange text-white px-8 py-4 rounded-full text-xl font-semibold hover:bg-orange-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 ${
                   processing ? 'opacity-60 cursor-wait' : ''
                 }`}

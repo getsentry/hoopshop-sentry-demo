@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { CartItem, Product } from '../types';
-
+import * as Sentry from "@sentry/react";
 interface CartContextType {
   items: CartItem[];
   addToCart: (product: Product) => void;
@@ -11,10 +11,12 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+const { info, fmt } = Sentry.logger
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
   const addToCart = (product: Product) => {
+    info(fmt`Adding product to cart: ${product.name}`);
     setItems(currentItems => {
       const existingItem = currentItems.find(item => item.id === product.id);
       if (existingItem) {

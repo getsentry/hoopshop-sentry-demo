@@ -14,3 +14,51 @@
     @apply font-heading font-bold;
   }
 }
+
+/* Neo-brutalism basketball theme styles */
+.neo-brutalism {
+  @apply font-mono;
+}
+
+.neo-brutalism h1, 
+.neo-brutalism h2, 
+.neo-brutalism h3, 
+.neo-brutalism h4 {
+  @apply font-black uppercase tracking-wider;
+}
+
+.neo-brutalism button {
+  @apply border-2 border-brand-lines shadow-neo-md transition-all hover:shadow-neo-sm;
+}
+
+.neo-brutalism .card {
+  @apply border-2 border-brand-lines shadow-neo-md p-4 bg-brand-net;
+}
+
+.neo-brutalism input, 
+.neo-brutalism textarea {
+  @apply border-2 border-brand-lines bg-brand-net p-2 focus:outline-none focus:ring-0 focus:border-brand-lines;
+}
+
+/* Basketball themed additions */
+.neo-brutalism::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  @apply bg-brand-basketball;
+  z-index: 40;
+}
+
+.neo-brutalism::after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  @apply bg-brand-basketball;
+  z-index: 40;
+}
