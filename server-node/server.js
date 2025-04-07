@@ -6,10 +6,10 @@ const sqlite3 = require('sqlite3').verbose(); // Use verbose for better debuggin
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3001; // Use port 3001 or environment variable
+const PORT = process.env.PORT || 3000; // Use port 3001 or environment variable
 
-const SENTRY_WEBHOOK_URL = 'https://sentry.io/api/0/organizations/buildwithcode/flags/hooks/provider/generic/';
-const WEBHOOK_SECRET = 'b1a8f7c3e5d9a2b0e7f4d1c8a3b6e9d0';
+const SENTRY_WEBHOOK_URL = process.env.SENTRY_WEBHOOK_URL;
+const WEBHOOK_SECRET = process.env.FEATURE_FLAG_WEBHOOK_SECRET;
 
 // Log configuration details
 console.log('=== SERVER CONFIGURATION ===');
@@ -103,9 +103,6 @@ function hmacSha256HexDigest(secret, message) {
                  .update(message, 'utf-8')
                  .digest('hex');
 }
-
-// --- Helper function to compute HMAC signature ---
-// ...existing code...
 
 // --- Helper to send Sentry webhook notification ---
 async function sendSentryNotification(flagName, action) {
